@@ -4,5 +4,12 @@ Rails.application.routes.draw do
   # root 'games#show'
   root 'home#index'
   resources :games
-  resources :pieces
+  resources :pieces do
+    collection do
+    get :update 
+    end 
+  end
+
+  get "/pieces/:rookid/castle_queen" => "pieces#castle_queen"
+  get "/pieces/:rookid/castle_king" => "pieces#castle_king"
 end

@@ -1,13 +1,13 @@
 class Piece < ApplicationRecord
-  belongs_to :game , optional: true
-  belongs_to :user , optional: true
+  attr_accessor :has_moved
 
+  belongs_to :game, optional: true
+  belongs_to :user, optional: true
   
-  
-  def captured?(new_x, new_y)
-    target_move = Piece.where(coordinate_x: new_x, coordinate_y: new_y).first
-    if defined?(target_move.user_id)
-      if(target_move.user_id == self.user_id)
+  def captured!(new_x, new_y)
+    target_move = Piece.where(game_id: game_id, coordinate_x: new_x, coordinate_y: new_y).first
+    if defined?(target_move.piece_color)
+      if(target_move.piece_color == piece_color)
         raise RuntimeError
       else
         target_move.update_attributes(coordinate_x: nil, coordinate_y: nil, captured: true)
@@ -17,18 +17,32 @@ class Piece < ApplicationRecord
   end
 
   def is_capture_valid?(new_x, new_y)
-    target_piece = Piece.where(coordinate_x: new_x, coordinate_y: new_y).first
+    target_piece = Piece.where(game_id: game_id, coordinate_x: new_x, coordinate_y: new_y).first
     (!target_piece || target_piece.user == self.user) ? false : true
-
   end
 
   def move_to!(new_x, new_y)
-    captured?(new_x, new_y) ? nil : update_attributes(coordinate_x: new_x, coordinate_y: new_y)
+    return false if boundaries(new_x,new_y) == false    
+    return false if piece_color == 'white' && game.turn == true
+    return false if piece_color == 'black' && game.turn == false
+    return false if valid_move?(new_x, new_y) == false
+    captured!(new_x, new_y)
+    update_attributes(coordinate_x: new_x, coordinate_y: new_y, has_moved: true)
+    game.toggle_turn
+
   end
 
-  def is_occupied?(x,y)
+  # check move is within board boundaries
+  def boundaries(x, y)
+    return false if x > 7 || x < 0 || y > 7 || y < 0
+    return true
+
+  end
+
+  def is_occupied?(x, y)
     # search the pieces database and see if x, y are occupied 
-      @piece = Piece.where(coordinate_x: x,  coordinate_y: y).present?   
+    @piece = Piece.where(game_id: game_id, coordinate_x: x, coordinate_y: y)
+    @piece.present?
   end
 
 
@@ -104,16 +118,19 @@ class Piece < ApplicationRecord
       while x < x_target do 
         x = x + 1 
         y = y - 1
-        return true if is_occupied?(x, y)
+
+        return true if is_occupied?(x, y) == true
       end
     end
 
     #top to bottom and right to left
     if x > x_target and y > y_target
       while x > x_target do 
+        
         x = x - 1 
         y = y - 1
         return true if is_occupied?(x, y)
+        
       end
     end
 
@@ -143,14 +160,12 @@ class Piece < ApplicationRecord
   def is_obstructed?(x_target, y_target)
     x_position_change = (x_target - coordinate_x).abs
     y_position_change = (y_target - coordinate_y).abs
-
     # is the path valid
-   if x_target > 7 || x_target < 0 || y_target > 7 || y_target < 0
+   if boundaries(x_target,y_target) == false
+    puts "#{self.inspect} moving to #{x_target}, #{y_target}"
     raise 'Outside of bounds of game'
    end
 
-      
-    
     # is the path horizontal
     if  y_position_change == 0 && x_position_change > 0
 
@@ -166,11 +181,17 @@ class Piece < ApplicationRecord
 
       check_diaganol(x_target, y_target) 
 
-    else
-      raise "Error Invalid move"
+    else    
+      # puts "Error: Invalid Move #{self.piece_color} #{self.type} at #{self.coordinate_x}, #{self.coordinate_y} "
+      # puts "#{self.inspect}"
+      return false
+      # raise "Error Invalid move"
     end
 
-  end
-
+  end  
 
 end
+
+
+
+
